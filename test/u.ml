@@ -50,29 +50,42 @@ let _ =
   ]
 )
 
-let rec reverso xy yx = 
+let rec reverso l out =
   conde [
-    [eq xy (List []); eq yx xy];
-    [
-      fun ss ->
-        let h, t = fresh(), fresh() in
+    [eq l (List []); eq out (List [])];
+    [ fun ss ->
+        let h, t = fresh (), fresh () in
         all [
-          eq xy (Cons (h, t));
-          fun ss ->
-            let tr = fresh() in
+          eq (Cons (h, t)) l;
+          (fun ss ->
+            let aa = fresh () in
             all [
-              reverso t tr;
-              fun ss -> 
-                all [
-                  appendo tr (Cons (h, List[])) yx;
-                ] ss
-            ] ss
+              appendo aa (Cons (h, List [])) out;
+              reverso t aa;
+            ] ss)
         ] ss
     ]
   ]
 
-let task_2rev q = [conde [[reverso (_lst 150 'x') q]; [reverso (_lst 150 'a') q]]]
-let task_2rev_par q = [condePar [[reverso (_lst 150 'x') q]; [reverso (_lst 150 'a') q]]]
+
+  let _ = test ~limit:5 "reverso of empty" (fun q ->
+    [ reverso q (List []) ]
+  )
+  
+  let _ = test ~limit:5 "reverso of len 1" (fun q ->
+    [ reverso q (Cons (const_int 1, List [])) ]
+  )
+  
+  let _ = test ~limit:5 "reverso of len 2" (fun q ->
+    [ reverso q (Cons (const_int 1, (Cons (const_int 2, List [])))) ]
+  )
+  
+  let _ = test ~limit:5 "reverso of len 3" (fun q ->
+    [ reverso q (Cons (const_int 1, (Cons (const_int 2, (Cons (const_int 3, List []))))) ) ]
+  )
+
+let task_2rev q = [conde [[reverso q (_lst 100 'x')]; [reverso q (_lst 100 'a')]]]
+let task_2rev_par q = [condePar [[reverso q (_lst 100 'x')]; [reverso q (_lst 100 'a')]]]
 
 
 let _ = test ~limit:(5) "reverso" (fun q -> task_2rev q)
