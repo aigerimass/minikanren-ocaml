@@ -217,21 +217,46 @@ let rec mplus_all_par lst =
     | hd::tl -> mplus_par hd (mplus_all_par tl)
     | [] -> MZero
 
+(*
+   let condePar lst s = 
+  let c = Chan.make_unbounded() 
+  let make_task_list lst = 
+    List.map (fun f -> Task.async pool (fun _ -> force_func (f s))) lst
+  in
+  let lst = List.map all lst in
+  Task.run pool (fun () -> List.iter (fun x -> Task.await pool x) (make_task_list lst));
+  Func (fun () -> 
+    (* Task.run pool (fun () -> List.iter (fun x -> Task.await pool x) (make_task_list lst)); *)
+    merge_streams c
+    )
+
+*)
+
 
 let condePar lst s = 
   let c = Chan.make_unbounded() in
   let rec force_func f = 
     match f with
-    | Func f -> force_func (f () )
-    | _ -> f
-    in
+    | Func f -> force_func (f())
+    | Choice (x, f) -> 
+      Chan.send c x;
+      force_func (f());
+    | Unit x ->
+      Chan.send c x;
+    | MZero -> ()
+  in
+  let rec merge_streams c = 
+    match Chan.recv_poll c with 
+    | Some x ->
+      mplus (Unit x) (fun () -> merge_streams c)
+    | None -> MZero
+  in
   let make_task_list lst = 
     List.map (fun f -> Task.async pool (fun _ -> force_func (f s))) lst
   in
   let lst = List.map all lst in
-  Func (fun () -> 
-    Task.run pool (fun () -> mplus_all_par (List.map (fun x -> Task.await pool x) (make_task_list lst)))
-    )
+  Task.run pool (fun () -> List.iter (fun x -> Task.await pool x) (make_task_list lst));
+  merge_streams c
   (*
   - сделать take 1 из каждой ветки? но в таком случае непонятно как брать остальные  
   - зафорсировать каждый в разном домене так, чтобы они остановились на Choice (a, f) или Unit или Zero.
