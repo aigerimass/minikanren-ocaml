@@ -212,7 +212,8 @@ let condePar lst s =
     | Func f -> force_func (f())
     | Choice (x, f) -> 
       Chan.send c x;
-      force_func (f());
+      let ans = force_func (f()) in
+      Choice (x, fun _ -> ans)
     | Unit x ->
       Chan.send c x;
       Unit x;
@@ -221,14 +222,14 @@ let condePar lst s =
   let rec mplus_par a_inf f =
     match a_inf with
       | MZero -> f
-      | Func f2 -> mplus_par f (force_func (f2()))
-      | Unit a -> Choice (a, fun () -> force_func f)
+      | Func f2 -> mplus_par f (f2())
+      | Unit a -> Choice (a, fun () -> f)
       | Choice (a, f2) -> Choice (a, (fun () -> mplus_par (f) (f2())))
   in
   let rec merge_streams c = (* тут получаем ответы и мерджим *)
     match Chan.recv_poll c with 
     | Some x ->
-      force_func (mplus_par (Unit x) (merge_streams c))
+      mplus_par (Unit x) ((merge_streams c)) (* форсируем результат mplus.. но как вернуть цепочку ответов?. force не возвращает Choice, ответы теряются*)
     | None -> MZero
   in
   let make_task_list lst = (* создаем задания, в них делаем форсирование целей *)
@@ -236,10 +237,11 @@ let condePar lst s =
   in
   let lst = List.map all lst in
   let idk = Task.run pool (fun () -> List.map (fun x -> Task.await pool x) (make_task_list lst)) in (* хочу тут запустить все вычисления со всех веток*)
-  merge_streams c (* а тут ждать ответов *)
+  merge_streams c (* а тут ждать ответов. тут должны они вернуться, возможно надо поменять формат merge stream *)
   (*
-  все еще нет параллельности
-  и один ответ потерян((
+  убрала force из merge
+  force форсирует только функции... 
+  считает в 2 раза дольше! :((()))
   *)
 
 (* take *)
