@@ -204,38 +204,10 @@ let conde lst s =
 (*
 еще вариант -- тут f запускать в другом потоке   
 *)
-let rec mplus_par a_inf f =
-  match a_inf with
-    | MZero -> f
-    | Func f2 -> mplus_par f (f2())
-    | Unit a -> Choice (a, fun () -> f)
-    | Choice (a, f2) -> Choice (a, (fun () -> mplus (f) f2))
-
-(* mplus_all with forcing *)
-let rec mplus_all_par lst =
-  match lst with
-    | hd::tl -> mplus_par hd (mplus_all_par tl)
-    | [] -> MZero
-
-(*
-   let condePar lst s = 
-  let c = Chan.make_unbounded() 
-  let make_task_list lst = 
-    List.map (fun f -> Task.async pool (fun _ -> force_func (f s))) lst
-  in
-  let lst = List.map all lst in
-  Task.run pool (fun () -> List.iter (fun x -> Task.await pool x) (make_task_list lst));
-  Func (fun () -> 
-    (* Task.run pool (fun () -> List.iter (fun x -> Task.await pool x) (make_task_list lst)); *)
-    merge_streams c
-    )
-
-*)
-
 
 let condePar lst s = 
   let c = Chan.make_unbounded() in
-  let rec force_func f = 
+  let rec force_func f = (* форсируем все ветки до самого конца *)
     match f with
     | Func f -> force_func (f())
     | Choice (x, f) -> 
@@ -243,32 +215,31 @@ let condePar lst s =
       force_func (f());
     | Unit x ->
       Chan.send c x;
-    | MZero -> ()
+      Unit x;
+    | MZero -> MZero
   in
-  let rec merge_streams c = 
+  let rec mplus_par a_inf f =
+    match a_inf with
+      | MZero -> f
+      | Func f2 -> mplus_par f (force_func (f2()))
+      | Unit a -> Choice (a, fun () -> force_func f)
+      | Choice (a, f2) -> Choice (a, (fun () -> mplus_par (f) (f2())))
+  in
+  let rec merge_streams c = (* тут получаем ответы и мерджим *)
     match Chan.recv_poll c with 
     | Some x ->
-      mplus (Unit x) (fun () -> merge_streams c)
+      force_func (mplus_par (Unit x) (merge_streams c))
     | None -> MZero
   in
-  let make_task_list lst = 
+  let make_task_list lst = (* создаем задания, в них делаем форсирование целей *)
     List.map (fun f -> Task.async pool (fun _ -> force_func (f s))) lst
   in
   let lst = List.map all lst in
-  Task.run pool (fun () -> List.iter (fun x -> Task.await pool x) (make_task_list lst));
-  merge_streams c
+  let idk = Task.run pool (fun () -> List.map (fun x -> Task.await pool x) (make_task_list lst)) in (* хочу тут запустить все вычисления со всех веток*)
+  merge_streams c (* а тут ждать ответов *)
   (*
-  - сделать take 1 из каждой ветки? но в таком случае непонятно как брать остальные  
-  - зафорсировать каждый в разном домене так, чтобы они остановились на Choice (a, f) или Unit или Zero.
-  1. проблема в том, что какая-то ветка может быть бесконечно вычисляемой, а мы ее зря зафорсировали.
- 2. а куда потом эти Choice отправятся? и где ждать вычисления? тут же?
- 3. ответы ведь в любом случае нужно мержить последовательно? тогда идея тупо в чан кидать не прокатит, лучше по порядку await
- или мы предполагаем, что неважно в каком порядке записаны ветки (а это влияет на производительность)
-
- в версии юниканрена это форсировалось до конца, но я не уверена что это норм
-         | Stream.Cons (x, y) ->
-          Chan.send c x;
-          force_stream (Lazy.force y)
+  все еще нет параллельности
+  и один ответ потерян((
   *)
 
 (* take *)
