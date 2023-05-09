@@ -201,21 +201,26 @@ let pool = Task.setup_pool ~num_domains:12 ()
 
 let condePar lst s = 
   let c = Chan.make_unbounded() in
+  let rec force_func f = 
+    match f() with
+    | Func f -> force_func f
+    | ss -> ss
+  in
   let rec force_streams x = 
     match x with 
     | MZero -> ()
     | Unit x -> Chan.send c x;
     | Choice (x, f) -> 
       Chan.send c x;
-      force_streams (f())
-    | Func f -> force_streams (f()) (* i am not sure. maybe it's like Thunk --> *)
+      force_streams (force_func f)
+    | Func f -> force_streams (force_func f) (* i am not sure. maybe it's like Thunk --> *)
   in
   let rec mplus_par a_inf r =
     match a_inf with
       | MZero -> r
-      | Func l -> mplus_par r (l()) (* по аналогии с Lazy.force *)
+      | Func l -> mplus_par r (force_func l) (* по аналогии с Lazy.force *)
       | Unit a -> Choice (a, fun () -> r)
-      | Choice (a, f2) -> Choice (a, (fun () -> mplus_par r (f2 ()) ))
+      | Choice (a, f2) -> Choice (a, (fun () -> mplus_par r (force_func f2) ))
   in
   let rec merge_streams c =
     match Chan.recv_poll c with 
@@ -230,7 +235,12 @@ let condePar lst s =
   Task.run pool (fun () -> List.iter (fun x -> Task.await pool x) (make_task_list lst)); (* хочу тут запустить все вычисления со всех веток*)
   merge_streams c 
   (*
+    сделала полностью по аналогии с unicanren
 
+    предположила, что Lazy.force делает только один шаг в форсировании до следующего lazy, 
+    тогда это работает как рекурсивно форсировать, пока будет Func
+
+    работает в два раза дольше от запуска к запуску, показывает не все ответы (тоже от запуска к запуску различается)
   *)
 
 (* take *)
