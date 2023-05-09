@@ -207,6 +207,7 @@ let condePar lst s =
     | ss -> ss
   in
   let rec force_streams x = 
+    Printf.printf "force|\n";
     match x with 
     | MZero -> ()
     | Unit x -> Chan.send c x;
@@ -225,14 +226,16 @@ let condePar lst s =
   let rec merge_streams c =
     match Chan.recv_poll c with 
     | Some x ->
-      mplus_par (Unit x) (Func (fun () -> merge_streams c))
+      Printf.printf "merge-moment\t";
+      mplus_par (Choice(x, fun () -> MZero)) (Func (fun () -> merge_streams c))
     | None -> MZero
   in
   let make_task_list lst = (* создаем задания, в них делаем форсирование целей *)
-    List.map (fun f -> Task.async pool (fun _ -> force_streams (f s))) lst
+    List.map (fun f -> Task.async pool (fun _ -> Printf.printf "starting task\n"; force_streams (f s))) lst
   in
   let lst = List.map all lst in
-  Task.run pool (fun () -> List.iter (fun x -> Task.await pool x) (make_task_list lst)); (* хочу тут запустить все вычисления со всех веток*)
+  Task.run pool (fun () -> List.iter (fun x -> Printf.printf "awaiting task\n";
+    Task.await pool x; Printf.printf "awaited task\n";) (make_task_list lst)); (* хочу тут запустить все вычисления со всех веток*)
   merge_streams c 
   (*
     сделала полностью по аналогии с unicanren
