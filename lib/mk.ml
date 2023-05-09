@@ -191,57 +191,46 @@ let rec fresh_n n =
 (* all: combine a sequence (list) of clauses *)
 let all lst a = bind_all (Unit a) lst
 
-
-
-let pool = Task.setup_pool ~num_domains:12 ()
 (* conde *)
 let conde lst s = 
   let lst = List.map all lst in
   Func (fun () -> mplus_all (List.map (fun f -> (f s)) lst))
 
 
-(* mplus with forcing. assume that f is not () -> g and already has answers *)
-(*
-еще вариант -- тут f запускать в другом потоке   
-*)
+let pool = Task.setup_pool ~num_domains:12 ()
 
 let condePar lst s = 
   let c = Chan.make_unbounded() in
-  let rec force_func f = (* форсируем все ветки до самого конца *)
-    match f with
-    | Func f -> force_func (f())
+  let rec force_streams x = 
+    match x with 
+    | MZero -> ()
+    | Unit x -> Chan.send c x;
     | Choice (x, f) -> 
       Chan.send c x;
-      let ans = force_func (f()) in
-      Choice (x, fun _ -> ans)
-    | Unit x ->
-      Chan.send c x;
-      Unit x;
-    | MZero -> MZero
+      force_streams (f())
+    | Func f -> force_streams (f()) (* i am not sure. maybe it's like Thunk --> *)
   in
-  let rec mplus_par a_inf f =
+  let rec mplus_par a_inf r =
     match a_inf with
-      | MZero -> f
-      | Func f2 -> mplus_par f (f2())
-      | Unit a -> Choice (a, fun () -> f)
-      | Choice (a, f2) -> Choice (a, (fun () -> mplus_par (f) (f2())))
+      | MZero -> r
+      | Func l -> mplus_par r (l()) (* по аналогии с Lazy.force *)
+      | Unit a -> Choice (a, fun () -> r)
+      | Choice (a, f2) -> Choice (a, (fun () -> mplus_par r (f2 ()) ))
   in
-  let rec merge_streams c = (* тут получаем ответы и мерджим *)
+  let rec merge_streams c =
     match Chan.recv_poll c with 
     | Some x ->
-      mplus_par (Unit x) ((merge_streams c)) (* форсируем результат mplus.. но как вернуть цепочку ответов?. force не возвращает Choice, ответы теряются*)
+      mplus_par (Unit x) (Func (fun () -> merge_streams c))
     | None -> MZero
   in
   let make_task_list lst = (* создаем задания, в них делаем форсирование целей *)
-    List.map (fun f -> Task.async pool (fun _ -> force_func (f s))) lst
+    List.map (fun f -> Task.async pool (fun _ -> force_streams (f s))) lst
   in
   let lst = List.map all lst in
-  let idk = Task.run pool (fun () -> List.map (fun x -> Task.await pool x) (make_task_list lst)) in (* хочу тут запустить все вычисления со всех веток*)
-  merge_streams c (* а тут ждать ответов. тут должны они вернуться, возможно надо поменять формат merge stream *)
+  Task.run pool (fun () -> List.iter (fun x -> Task.await pool x) (make_task_list lst)); (* хочу тут запустить все вычисления со всех веток*)
+  merge_streams c 
   (*
-  убрала force из merge
-  force форсирует только функции... 
-  считает в 2 раза дольше! :((()))
+
   *)
 
 (* take *)
