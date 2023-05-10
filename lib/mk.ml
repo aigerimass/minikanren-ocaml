@@ -235,7 +235,7 @@ let condePar lst s =
     | None -> MZero
   in
   let make_par_task acc ~domain_mgr =
-    Eio.Domain_manager.run domain_mgr (fun () -> 
+    Eio.Domain_manager.run domain_mgr (fun () -> (* something is wrong *)
       Printf.printf "Start task at %f\n" (Sys.time());
       force_streams (acc s);
       Printf.printf "End task at %f\n" (Sys.time());)
@@ -247,20 +247,25 @@ let condePar lst s =
   in
   let make_task_list lst =
     if predicate then 
-      Eio_main.run @@ fun env ->
-      Stdlib.List.iter (make_par_task ~domain_mgr:(Eio.Stdenv.domain_mgr env)) lst
+      Eio_main.run @@ fun env -> 
+      let rec iter_tasks lst = 
+        match lst with
+        | [] -> ()
+        | hd :: tl -> 
+          Eio.Fiber.both 
+          (fun () -> make_par_task ~domain_mgr:(Eio.Stdenv.domain_mgr env) hd)
+          (fun () -> iter_tasks tl)
+      in
+      iter_tasks lst
     else Stdlib.List.iter make_non_par_task lst
   in 
   let lst = List.map all lst in
   make_task_list lst;
   merge_streams queue
   (*
-    сделала полностью по аналогии с unicanren eio 
-
-    предположила, что Lazy.force делает только один шаг в форсировании до следующего lazy, 
-    тогда это работает как рекурсивно форсировать, пока будет Func
-
-    работает корректно, но время не улучшилось. 
+    предположила, что Lazy.force работает как рекурсивно форсировать, пока будет Func
+    сделала рекурсивный запуск задач с помощью Eio.Fiber, потому что если обходить список List.iter, то работает последовательности
+    работает действительно параллельно,  но время не улучшилось + был случай, когда один из ответов потерялся
   *)
 
 (* take *)
