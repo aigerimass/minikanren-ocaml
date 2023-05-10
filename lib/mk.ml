@@ -200,7 +200,7 @@ let conde lst s =
 let pool = Task.setup_pool ~num_domains:12 ()
 
 let condePar lst s = 
-  let c = Chan.make_unbounded() in
+  let queue = Eio.Stream.create max_int in
   let rec force_func f = 
     match f() with
     | Func f -> force_func f
@@ -209,10 +209,14 @@ let condePar lst s =
   let rec force_streams x = 
     Printf.printf "force|\n";
     match x with 
-    | MZero -> ()
-    | Unit x -> Chan.send c x;
+    | MZero -> 
+      Printf.printf "in MZero\n";
+    | Unit x -> 
+      Printf.printf "in unit\n";
+      Eio.Stream.add queue x;
     | Choice (x, f) -> 
-      Chan.send c x;
+      Printf.printf "in choice\n";
+      Eio.Stream.add queue x;
       force_streams (force_func f)
     | Func f -> force_streams (force_func f) (* i am not sure. maybe it's like Thunk --> *)
   in
@@ -224,26 +228,39 @@ let condePar lst s =
       | Choice (a, f2) -> Choice (a, (fun () -> mplus_par r (force_func f2) ))
   in
   let rec merge_streams c =
-    match Chan.recv_poll c with 
+    match Eio.Stream.take_nonblocking c with
     | Some x ->
       Printf.printf "merge-moment\t";
       mplus_par (Choice(x, fun () -> MZero)) (Func (fun () -> merge_streams c))
     | None -> MZero
   in
-  let make_task_list lst = (* создаем задания, в них делаем форсирование целей *)
-    List.map (fun f -> Task.async pool (fun _ -> Printf.printf "starting task\n"; force_streams (f s))) lst
+  let make_par_task acc ~domain_mgr =
+    Eio.Domain_manager.run domain_mgr (fun () -> 
+      Printf.printf "Start task at %f\n" (Sys.time());
+      force_streams (acc s);
+      Printf.printf "End task at %f\n" (Sys.time());)
   in
+  let make_non_par_task acc = 
+    force_streams (acc s) (* нужно ли форсировать непараллельные? *)
+  in
+  let predicate = true (* когда параллелить *)
+  in
+  let make_task_list lst =
+    if predicate then 
+      Eio_main.run @@ fun env ->
+      Stdlib.List.iter (make_par_task ~domain_mgr:(Eio.Stdenv.domain_mgr env)) lst
+    else Stdlib.List.iter make_non_par_task lst
+  in 
   let lst = List.map all lst in
-  Task.run pool (fun () -> List.iter (fun x -> Printf.printf "awaiting task\n";
-    Task.await pool x; Printf.printf "awaited task\n";) (make_task_list lst)); (* хочу тут запустить все вычисления со всех веток*)
-  merge_streams c 
+  make_task_list lst;
+  merge_streams queue
   (*
-    сделала полностью по аналогии с unicanren
+    сделала полностью по аналогии с unicanren eio 
 
     предположила, что Lazy.force делает только один шаг в форсировании до следующего lazy, 
     тогда это работает как рекурсивно форсировать, пока будет Func
 
-    работает в два раза дольше от запуска к запуску, показывает не все ответы (тоже от запуска к запуску различается)
+    работает корректно, но время не улучшилось. 
   *)
 
 (* take *)

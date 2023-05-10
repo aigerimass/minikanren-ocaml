@@ -88,13 +88,14 @@ let task_2rev q = [conde [[reverso q (_lst 100 'x')]; [reverso q (_lst 100 'a')]
 -- тут почему-то запускается вычисление
 непараллельно работает 15-16 секунд, получаем 2 ответа
 *)
-let task_2rev_par q = [condePar [[reverso q (_lst 100 'x')]; [reverso q (_lst 100 'a')]]]
 
 (*
 let _ = test ~limit:(5) "reverso" (fun q -> task_2rev q)
 *)
 
-let _ = test ~limit:(2) "reverso-parallel" (fun q -> task_2rev_par q)
+let _ = 
+  let task_2rev_par q = [condePar [[reverso q (_lst 100 'x')]; [reverso q (_lst 100 'a')]]] in
+  test ~limit:(5) "reverso-parallel" (fun q -> task_2rev_par q)
 
 
 
