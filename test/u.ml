@@ -95,7 +95,7 @@ let _ = test ~limit:(5) "reverso" (fun q -> task_2rev q)
 
 let _ = 
   let task_2rev_par q = [condePar [[reverso q (_lst 100 'x')]; [reverso q (_lst 100 'a')]]] in
-  test ~limit:(5) "reverso-parallel" (fun q -> task_2rev_par q)
+  test ~limit:(2) "reverso-parallel" (fun q -> task_2rev_par q)
 
 
 

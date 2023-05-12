@@ -206,20 +206,55 @@ let condePar lst s =
     | Func f -> force_func f
     | ss -> ss
   in
-  let rec force_streams x = 
-    Printf.printf "force|\n";
+  let rec force_streams x n = 
     match x with 
     | MZero -> 
-      Printf.printf "in MZero\n";
+      Printf.printf "force MZero %d at %fs\n" n (Sys.time());
+
     | Unit x -> 
-      Printf.printf "in unit\n";
+      Printf.printf "force Unit\n";
       Eio.Stream.add queue x;
+
     | Choice (x, f) -> 
-      Printf.printf "in choice\n";
+      Printf.printf "force Choice %d at %fs\n" n (Sys.time());
       Eio.Stream.add queue x;
-      force_streams (force_func f)
-    | Func f -> force_streams (force_func f) (* i am not sure. maybe it's like Thunk --> *)
+      force_streams (force_func f) n
+      (* --- если бы тут возращалось Func (() -> force_streams f)) -- то можно сохранить ленивость?*)
+
+    | Func f -> 
+      Printf.printf "force Func %d at %fs\n" n (Sys.time());
+      force_streams ((force_func f)) n
   in
+  let make_par_task acc ~domain_mgr =
+    Eio.Domain_manager.run domain_mgr (fun () -> (* something is wrong *)
+      Printf.printf "Start task at %f\n" (Sys.time());
+      let n = (Random.self_init(); Random.int 5) in
+      force_streams (acc s) n;
+      Printf.printf "End task at %f\n" (Sys.time());)
+  in
+  let make_non_par_task acc = 
+    let n = (Random.self_init(); Random.int 5) in
+    force_streams (acc s) n (* нужно ли форсировать непараллельные? *)
+  in
+  let predicate = false (* когда параллелить *)
+  in
+  let make_task_list l =
+    if predicate then 
+      Eio_main.run @@ fun env -> 
+      let rec iter_tasks l = 
+        match l with
+        | [] -> ()
+        | hd :: tl -> 
+          Eio.Fiber.both 
+          (fun () -> make_par_task ~domain_mgr:(Eio.Stdenv.domain_mgr env) hd)
+          (fun () -> iter_tasks tl)
+      in
+      iter_tasks l
+    else Stdlib.List.iter make_non_par_task l
+  in 
+  let lst = List.map all lst in
+  make_task_list lst;
+
   let rec mplus_par a_inf r =
     match a_inf with
       | MZero -> r
@@ -234,33 +269,6 @@ let condePar lst s =
       mplus_par (Choice(x, fun () -> MZero)) (Func (fun () -> merge_streams c))
     | None -> MZero
   in
-  let make_par_task acc ~domain_mgr =
-    Eio.Domain_manager.run domain_mgr (fun () -> (* something is wrong *)
-      Printf.printf "Start task at %f\n" (Sys.time());
-      force_streams (acc s);
-      Printf.printf "End task at %f\n" (Sys.time());)
-  in
-  let make_non_par_task acc = 
-    force_streams (acc s) (* нужно ли форсировать непараллельные? *)
-  in
-  let predicate = true (* когда параллелить *)
-  in
-  let make_task_list lst =
-    if predicate then 
-      Eio_main.run @@ fun env -> 
-      let rec iter_tasks lst = 
-        match lst with
-        | [] -> ()
-        | hd :: tl -> 
-          Eio.Fiber.both 
-          (fun () -> make_par_task ~domain_mgr:(Eio.Stdenv.domain_mgr env) hd)
-          (fun () -> iter_tasks tl)
-      in
-      iter_tasks lst
-    else Stdlib.List.iter make_non_par_task lst
-  in 
-  let lst = List.map all lst in
-  make_task_list lst;
   merge_streams queue
   (*
     предположила, что Lazy.force работает как рекурсивно форсировать, пока будет Func
