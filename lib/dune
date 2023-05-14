@@ -1,6 +1,6 @@
 (library
  (name minikanren)
- (modules mk fd ck)
+ (modules mk fd ck examples)
  (libraries
  eio_main
  domainslib
