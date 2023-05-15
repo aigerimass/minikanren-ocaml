@@ -16,6 +16,6 @@ let test ?limit:(limit = -1) name f =
   print_string (Printf.sprintf "Execution time: %f\n" (Unix.time() -. time));
   print_s s
 
-let _ = test ~limit:(2) "reverso-parallel" task_2rev10_par
+let _ = test ~limit:(-1) "reverso-parallel" smm_par
 
 
