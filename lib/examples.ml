@@ -45,6 +45,7 @@ let rec anyo t = conde [
     [fun ss -> all [anyo t] ss]
   ]
 
+let _ = use_fd()
 (* send + more = money. 72 answers *)
 let smm_nonpar letters = 
   let add_digits aug add cin cout digit =
@@ -226,3 +227,121 @@ let task_10app_nonpar len q = [conde [
           add_digits d e (const_int 0) c0 y;
         ]
     | _ -> failwith "Fresh_n failed"
+
+
+
+(* hard level *)
+
+let rec appendo_par l s out : 'a -> 'a stream =
+  condePar [
+    [eq l (List []); eq s out];
+    [
+      fun ss ->
+        let a, d = fresh (), fresh () in
+        all [
+          eq (Cons (a, d)) l;
+          (fun ss ->
+            let res = fresh () in
+            all [
+              eq (Cons (a, res)) out;
+              appendo d s res;
+            ] ss)
+        ] ss
+    ]
+  ]
+
+let task_appendo_par len q = [ appendo (lst len 'a') (lst len 'b') q ]
+
+
+let rec reversoPar l out =
+  condePar [
+    [eq l (List []); eq out (List [])];
+    [ fun ss ->
+        let h, t = fresh (), fresh () in
+        all [
+          eq (Cons (h, t)) l;
+          (fun ss ->
+            let aa = fresh () in
+            all [
+              appendo aa (Cons (h, List [])) out;
+              reverso t aa;
+            ] ss)
+        ] ss
+    ]
+  ] 
+
+let task_rev_par len q = [ reversoPar q (lst len 'a') ]
+
+let task_rev_nonpar len q = [ reverso q (lst len 'a') ]
+
+let task_50rev_par len q = [condePar [
+  task_10rev_par len q;
+  task_10rev_par len q;
+  task_10rev_par len q;
+  task_10rev_par len q;
+  task_10rev_par len q;
+  ]]
+
+let task_50rev_nonpar len q = [conde [
+  task_10rev_nonpar len q;
+  task_10rev_nonpar len q;
+  task_10rev_nonpar len q;
+  task_10rev_nonpar len q;
+  task_10rev_nonpar len q;
+]]
+
+(* or 100 times pure reverso, no difference *)
+let task_100rev_par len q = [condePar [
+  task_10rev_par len q;
+  task_10rev_par len q;
+  task_10rev_par len q;
+  task_10rev_par len q;
+  task_10rev_par len q;
+  task_10rev_par len q;
+  task_10rev_par len q;
+  task_10rev_par len q;
+  task_10rev_par len q;
+  task_10rev_par len q;
+  ]]
+
+let task_100rev_nonpar len q = [conde [
+  task_10rev_nonpar len q;
+  task_10rev_nonpar len q;
+  task_10rev_nonpar len q;
+  task_10rev_nonpar len q;
+  task_10rev_nonpar len q;
+  task_10rev_nonpar len q;
+  task_10rev_nonpar len q;
+  task_10rev_nonpar len q;
+  task_10rev_nonpar len q;
+  task_10rev_nonpar len q;
+]]
+
+
+let task_10rev_parpar len q = [condePar [
+  [reversoPar q (lst len '1')];
+  [reversoPar q (lst len '2')];
+  [reversoPar q (lst len '3')];
+  [reversoPar q (lst len '4')];
+  [reversoPar q (lst len '5')];
+
+  [reversoPar q (lst len '6')];
+  [reversoPar q (lst len '7')];
+  [reversoPar q (lst len '8')];
+  [reversoPar q (lst len '9')];
+  [reversoPar q (lst len '0')];
+]]
+
+let task_100rev_parpar len q = [condePar [
+  task_10rev_parpar len q;
+  task_10rev_parpar len q;
+  task_10rev_parpar len q;
+  task_10rev_parpar len q;
+  task_10rev_parpar len q;
+
+  task_10rev_parpar len q;
+  task_10rev_parpar len q;
+  task_10rev_parpar len q;
+  task_10rev_parpar len q;
+  task_10rev_parpar len q;
+]]

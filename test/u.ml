@@ -6,7 +6,8 @@ open Minikanren.Examples
 let print_sep name =
   print_string (Printf.sprintf "=========%s========\n" name)
 
-let print_s = List.iter (fun t -> print_string ((string_of_logic_term t) ^ "\n"))
+let print_s ans = Printf.printf "Answers: %d\n" (List.length ans);
+  List.iter (fun t -> print_string ((string_of_logic_term t) ^ "\n")) ans
 
 let test ?limit:(limit = -1) name f =
   let time = Unix.time() in
@@ -16,6 +17,7 @@ let test ?limit:(limit = -1) name f =
   print_string (Printf.sprintf "Execution time: %f\n" (Unix.time() -. time));
   print_s s
 
-let _ = test ~limit:(-1) "reverso-parallel" smm_par
+  
+  let _ = test ~limit:(-1) "reverso" (task_100rev_parpar 100)
 
 
