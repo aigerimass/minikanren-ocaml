@@ -190,9 +190,47 @@ let rec fresh_n n =
 let all lst a = bind_all (Unit a) lst
 
 (* conde *)
-let conde lst s =
+let conde lst s = 
   let lst = List.map all lst in
   Func (fun () -> mplus_all (List.map (fun f -> (f s)) lst))
+
+let condePar lst s = 
+  let queue = Eio.Stream.create max_int in
+  let rec force_streams x = 
+    match x with 
+    | Choice (x, f) -> Eio.Stream.add queue x;
+      force_streams (f ());
+    | Unit x -> Eio.Stream.add queue x;
+    | Func f -> force_streams (f())
+    | MZero -> ()
+  in
+  let make_par_task f ~domain_mgr = Eio.Domain_manager.run domain_mgr (fun () ->
+      force_streams (f s)) 
+  in
+  let make_nonpar_task f = force_streams (f s) in
+  let make_task_list l =
+      Eio_main.run @@ fun env -> 
+      let rec iter_tasks l = 
+        match l with
+        | hd :: tl -> Eio.Fiber.both 
+          (fun () -> 
+            let coin = (Random.self_init(); Random.int 2)
+          in
+            if coin == 0 then
+              make_par_task ~domain_mgr:(Eio.Stdenv.domain_mgr env) hd
+            else make_nonpar_task hd)
+          (fun () -> iter_tasks tl)
+        | [] -> ()
+      in iter_tasks l
+  in 
+  make_task_list (List.map all lst);
+
+  let rec merge_streams queue =
+    match Eio.Stream.take_nonblocking queue with
+    | Some x -> mplus (Unit x) (fun () -> merge_streams queue)
+    | None -> MZero
+  in
+  merge_streams queue
 
 (* take *)
 let rec take n a_inf =
