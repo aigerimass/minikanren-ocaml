@@ -1,3 +1,8 @@
+open Eio
+
+
+let answers_limit = Atomic.make 0
+
 (* represent a constant value *)
 type const_value =
   | Bool of bool
@@ -198,10 +203,19 @@ let condePar lst s =
   let queue = Eio.Stream.create max_int in
   let rec force_streams x = 
     match x with 
-    | Choice (x, f) -> Eio.Stream.add queue x;
+    | Choice (x, f) -> 
+      let previous = Atomic.get answers_limit in
+      Atomic.set answers_limit (previous - 1);
+      Eio.Stream.add queue x;
       force_streams (f ());
-    | Unit x -> Eio.Stream.add queue x;
-    | Func f -> force_streams (f())
+    | Unit x -> 
+      let previous = Atomic.get answers_limit in
+      Atomic.set answers_limit (previous - 1);
+      Eio.Stream.add queue x;
+    | Func f -> 
+      if (Atomic.get answers_limit) == 0
+        then ()
+        else force_streams (f())
     | MZero -> ()
   in
   let make_par_task f ~domain_mgr = Eio.Domain_manager.run domain_mgr (fun () ->
@@ -232,8 +246,10 @@ let condePar lst s =
   in
   merge_streams queue
 
+
 (* take *)
 let rec take n a_inf =
+  Atomic.set answers_limit n;
   if n = 0 then []
   else match a_inf with
     | MZero -> []
