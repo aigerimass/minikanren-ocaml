@@ -345,3 +345,14 @@ let task_100rev_parpar len q = [condePar [
   task_10rev_parpar len q;
   task_10rev_parpar len q;
 ]]
+
+let task_inf2rev_par q = [condePar [
+  [reverso q q];
+  [reverso q q]
+]]
+
+
+let task_inf2rev_nonpar q = [conde [
+  [reverso q q];
+  [reverso q q]
+]]

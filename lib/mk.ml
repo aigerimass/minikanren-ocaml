@@ -2,6 +2,7 @@ open Eio
 
 
 let answers_limit = Atomic.make 0
+let finish = ref false
 
 (* represent a constant value *)
 type const_value =
@@ -204,18 +205,27 @@ let condePar lst s =
   let rec force_streams x = 
     match x with 
     | Choice (x, f) -> 
-      let previous = Atomic.get answers_limit in
-      Atomic.set answers_limit (previous - 1);
-      Eio.Stream.add queue x;
-      force_streams (f ());
-    | Unit x -> 
-      let previous = Atomic.get answers_limit in
-      Atomic.set answers_limit (previous - 1);
-      Eio.Stream.add queue x;
-    | Func f -> 
-      if (Atomic.get answers_limit) == 0
+      if !finish 
         then ()
-        else force_streams (f())
+        else 
+          (*answers_limit := !answers_limit - 1;*)
+          let new_limit = (Atomic.get answers_limit) - 1 in
+          Atomic.set answers_limit new_limit;
+          Eio.Stream.add queue x;
+          if new_limit = 0 
+            then finish := true
+          else force_streams (f ());
+    | Unit x -> 
+      (* answers_limit := !answers_limit - 1; *)
+        let new_limit = (Atomic.get answers_limit) - 1 in
+        Atomic.set answers_limit new_limit;
+        Eio.Stream.add queue x;
+        if new_limit = 0 
+          then finish := true
+    | Func f -> 
+      if !finish
+        then ()
+      else force_streams (f ());
     | MZero -> ()
   in
   let make_par_task f ~domain_mgr = Eio.Domain_manager.run domain_mgr (fun () ->
@@ -224,17 +234,11 @@ let condePar lst s =
   let make_nonpar_task f = force_streams (f s) in
   let make_task_list l =
       Eio_main.run @@ fun env -> 
-      let rec iter_tasks l = 
-        match l with
-        | hd :: tl -> Eio.Fiber.both 
-          (fun () -> 
-            let coin = (Random.self_init(); Random.int 2)
-          in
-            if coin == 0 then
-              make_par_task ~domain_mgr:(Eio.Stdenv.domain_mgr env) hd
-            else make_nonpar_task hd)
-          (fun () -> iter_tasks tl)
-        | [] -> ()
+      let rec iter_tasks l = match l with
+          | hd :: tl -> Eio.Fiber.both 
+            (fun () -> make_par_task ~domain_mgr:(Eio.Stdenv.domain_mgr env) hd)
+            (fun () -> iter_tasks tl)
+          | [] -> ()
       in iter_tasks l
   in 
   make_task_list (List.map all lst);
@@ -250,6 +254,7 @@ let condePar lst s =
 (* take *)
 let rec take n a_inf =
   Atomic.set answers_limit n;
+  (* answers_limit := n; *)
   if n = 0 then []
   else match a_inf with
     | MZero -> []
