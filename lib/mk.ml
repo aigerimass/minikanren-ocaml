@@ -1,7 +1,7 @@
 open Eio
 
 
-let answers_limit = Atomic.make 0
+let answers_limit = ref 0
 let finish = ref false
 
 (* represent a constant value *)
@@ -208,19 +208,13 @@ let condePar lst s =
       if !finish 
         then ()
         else 
-          (*answers_limit := !answers_limit - 1;*)
-          let new_limit = (Atomic.get answers_limit) - 1 in
-          Atomic.set answers_limit new_limit;
           Eio.Stream.add queue x;
-          if new_limit = 0 
+          if Stream.length queue == !answers_limit 
             then finish := true
           else force_streams (f ());
     | Unit x -> 
-      (* answers_limit := !answers_limit - 1; *)
-        let new_limit = (Atomic.get answers_limit) - 1 in
-        Atomic.set answers_limit new_limit;
         Eio.Stream.add queue x;
-        if new_limit = 0 
+        if Stream.length queue == !answers_limit 
           then finish := true
     | Func f -> 
       if !finish
@@ -253,8 +247,7 @@ let condePar lst s =
 
 (* take *)
 let rec take n a_inf =
-  Atomic.set answers_limit n;
-  (* answers_limit := n; *)
+  answers_limit := n;
   if n = 0 then []
   else match a_inf with
     | MZero -> []
