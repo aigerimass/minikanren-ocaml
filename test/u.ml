@@ -18,6 +18,6 @@ let test ?limit:(limit = -1) name f =
   print_s s
 
   
-  let _ = test ~limit:(20) "reverso" (task_inf2rev_par)
+  let _ = test ~limit:(-1) "reverso" (task_100rev_par 20)
 
 
