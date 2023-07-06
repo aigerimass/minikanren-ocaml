@@ -254,7 +254,7 @@ let daemons_counter = ref 0
   MZero *)
 
 exception Cancel_Fibers of string
-let fiber_fail () = raise (Cancel_Fibers "yyy")
+let fiber_fail len = raise (Cancel_Fibers (string_of_int len))
 
 let condePar lst s = 
   let queue = Eio.Stream.create max_int in
@@ -262,13 +262,13 @@ let condePar lst s =
     match x with 
     | Choice (x, f) -> 
       Eio.Stream.add queue x;
-      if Stream.length queue >= !answers_limit 
-        then fiber_fail()
+      if Stream.length queue >= !answers_limit && !answers_limit != -1
+        then fiber_fail (Stream.length queue)
       else force_streams (f ());
     | Unit x -> 
         Eio.Stream.add queue x;
-        if Stream.length queue >= !answers_limit 
-          then fiber_fail()
+        if Stream.length queue >= !answers_limit && !answers_limit != -1
+          then fiber_fail (Stream.length queue)
     | Func f -> force_streams (f ());
     | MZero -> ()
   in
@@ -286,8 +286,8 @@ let condePar lst s =
       in iter_tasks l
   in 
   let run_tasks () =  
-    try make_task_list (List.map all lst) with 
-    | Cancel_Fibers _ -> ()
+    try make_task_list (List.map all lst) with
+    | _ -> ()
   in
   let rec merge_streams queue =
     match Eio.Stream.take_nonblocking queue with
