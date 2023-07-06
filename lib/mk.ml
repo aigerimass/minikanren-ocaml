@@ -285,14 +285,16 @@ let condePar lst s =
           | [] -> ()
       in iter_tasks l
   in 
-  (try make_task_list (List.map all lst) with 
-  | Cancel_Fibers _ -> ())
-;
+  let run_tasks () =  
+    try make_task_list (List.map all lst) with 
+    | Cancel_Fibers _ -> ()
+  in
   let rec merge_streams queue =
     match Eio.Stream.take_nonblocking queue with
     | Some x -> mplus (Unit x) (fun () -> merge_streams queue)
     | None -> MZero
   in
+  run_tasks ();
   merge_streams queue
 
 
