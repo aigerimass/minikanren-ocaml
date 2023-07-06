@@ -17,7 +17,9 @@ let test ?limit:(limit = -1) name f =
   print_string (Printf.sprintf "Execution time: %f\n" (Unix.time() -. time));
   print_s s
 
-  
+  (* вызываются 100 реверсов списков длины 10 
+  task_100rev_par и другие задачи в файле examples 
+  *)
   let _ = test ~limit:(-1) "reverso" (task_100rev_par 10)
 
 
