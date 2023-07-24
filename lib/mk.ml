@@ -208,9 +208,6 @@ let answers_limit = ref 0
 let finish = ref false
 let domains_number = ref 0
 
-exception CancelFiber of string
-let fiber_fail len = raise (CancelFiber (string_of_int len))
-
 let condePar lst s = 
   let queue = Eio.Stream.create max_int in
   let rec force_streams x = 
@@ -249,17 +246,12 @@ let condePar lst s =
         | [] -> ()
       in iter_tasks l
   in 
-  let run_tasks () =  
-    try make_task_list (List.map all lst) with
-    | CancelFiber _ -> ()
-    | _ -> ()
-  in
   let rec merge_streams queue =
     match Eio.Stream.take_nonblocking queue with
     | Some x -> mplus (Unit x) (fun () -> merge_streams queue)
     | None -> MZero
   in
-  run_tasks ();
+  make_task_list (List.map all lst);
   finish_flag := false;
   merge_streams queue
 
