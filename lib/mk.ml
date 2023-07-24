@@ -1,6 +1,6 @@
 open Eio
 
-
+let finish_flag = ref false;
 
 (* represent a constant value *)
 type const_value =
@@ -147,11 +147,16 @@ let empty_f () = MZero
 
 (* mplus *)
 let rec mplus a_inf f =
-  match a_inf with
-    | MZero -> f ()
-    | Func f2 -> Func (fun () -> mplus (f ()) f2)
-    | Unit a -> Choice (a, f)
-    | Choice (a, f2) -> Choice (a, (fun () -> mplus (f ()) f2))
+    match a_inf with
+    | MZero -> 
+      if !finish_flag then MZero
+      else f ()
+    | Func f2 -> if !finish_flag then MZero
+        else Func (fun () -> mplus (f ()) f2)
+    | Unit a -> if !finish_flag then (Unit a)
+      else Choice (a, f)
+    | Choice (a, f2) -> if !finish_flag then (Unit a)
+    else Choice (a, (fun () -> mplus (f ()) f2))
 
 (* mplus* *)
 let rec mplus_all lst =
@@ -201,60 +206,10 @@ let conde lst s =
 
 let answers_limit = ref 0
 let finish = ref false
-let daemons_counter = ref 0
+let domains_number = ref 0
 
-(* let condePar lst s = 
-  let queue = Eio.Stream.create max_int in
-  let rec force_streams x = 
-    match x with 
-    | Choice (x, f) -> 
-      if !finish 
-        then ()
-        else 
-          Eio.Stream.add queue x;
-          if Stream.length queue >= !answers_limit 
-            then finish := true
-          else force_streams (f ());
-    | Unit x -> 
-        Eio.Stream.add queue x;
-        if Stream.length queue >= !answers_limit 
-          then finish := true
-    | Func f -> 
-      if !finish
-        then ()
-      else force_streams (f ());
-    | MZero -> ()
-  in
-  let make_par_task f ~domain_mgr = Eio.Domain_manager.run domain_mgr (fun () ->
-      force_streams (f s);
-      daemons_counter := !daemons_counter + 1;
-      while true do () done;
-      `Stop_daemon
-      ) 
-  in
-  let make_task_list sw l =
-      Eio_main.run @@ fun env -> 
-        let domain_mgr = Eio.Stdenv.domain_mgr env in
-        Stdlib.List.iter (fun x -> 
-          Fiber.fork_daemon ~sw (fun () -> make_par_task x ~domain_mgr:domain_mgr))
-          l
-  in 
-  let lst_l = List.map all lst in 
-  let lst_len = Stdlib.List.length lst_l in
-  Switch.run @@ fun sw -> 
-  make_task_list sw lst_l;
-  while Stream.length queue < !answers_limit && !daemons_counter < lst_len do
-    ()
-  done;
-  let rec merge_streams queue =
-    match Eio.Stream.take_nonblocking queue with
-    | Some x -> mplus (Unit x) (fun () -> merge_streams queue)
-    | None -> MZero
-  in
-  MZero *)
-
-exception Cancel_Fibers of string
-let fiber_fail len = raise (Cancel_Fibers (string_of_int len))
+exception CancelFiber of string
+let fiber_fail len = raise (CancelFiber (string_of_int len))
 
 let condePar lst s = 
   let queue = Eio.Stream.create max_int in
@@ -263,30 +218,40 @@ let condePar lst s =
     | Choice (x, f) -> 
       Eio.Stream.add queue x;
       if Stream.length queue >= !answers_limit && !answers_limit != -1
-        then fiber_fail (Stream.length queue)
+        then (finish_flag := true;)
       else force_streams (f ());
     | Unit x -> 
         Eio.Stream.add queue x;
         if Stream.length queue >= !answers_limit && !answers_limit != -1
-          then fiber_fail (Stream.length queue)
-    | Func f -> force_streams (f ());
+          then 
+			finish_flag := true;
+    | Func f -> 
+      if !finish_flag then ()
+      else force_streams (f ());
     | MZero -> ()
   in
-  let make_par_task f ~domain_mgr = Eio.Domain_manager.run domain_mgr (fun () ->
-      force_streams (f s)) 
-  in
-  let make_nonpar_task f = force_streams (f s) in
   let make_task_list l =
-      Eio_main.run @@ fun env -> 
+    let make_par_task f ~domain_mgr = 
+		domains_number := !domains_number + 1;
+		Eio.Domain_manager.run domain_mgr (fun () -> force_streams (f s));
+		domains_number := !domains_number - 1;
+	in
+    let make_nonpar_task f = force_streams (f s) in
+    Eio_main.run @@ fun env -> 
       let rec iter_tasks l = match l with
-          | hd :: tl -> Eio.Fiber.both 
-            (fun () -> make_par_task ~domain_mgr:(Eio.Stdenv.domain_mgr env) hd)
-            (fun () -> iter_tasks tl)
-          | [] -> ()
+        | hd :: tl -> Eio.Fiber.both 
+          (fun () -> 
+            if !domains_number <= 15
+              then 
+				(make_par_task ~domain_mgr:(Eio.Stdenv.domain_mgr env) hd)
+            else (make_nonpar_task hd))
+          (fun () -> iter_tasks tl)
+        | [] -> ()
       in iter_tasks l
   in 
   let run_tasks () =  
     try make_task_list (List.map all lst) with
+    | CancelFiber _ -> ()
     | _ -> ()
   in
   let rec merge_streams queue =
@@ -295,6 +260,7 @@ let condePar lst s =
     | None -> MZero
   in
   run_tasks ();
+  finish_flag := false;
   merge_streams queue
 
 

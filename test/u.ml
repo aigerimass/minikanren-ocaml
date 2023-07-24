@@ -20,6 +20,6 @@ let test ?limit:(limit = -1) name f =
   (* вызываются 100 реверсов списков длины 10 
   task_100rev_par и другие задачи в файле examples 
   *)
-  let _ = test ~limit:(-1) "reverso" (task_100rev_par 10)
+  let _ = test ~limit:(-1) "reverso" (task_10rev_parpar 100)
 
 
