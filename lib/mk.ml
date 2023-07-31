@@ -149,14 +149,17 @@ let empty_f () = MZero
 let rec mplus a_inf f =
     match a_inf with
     | MZero -> 
-      if !finish_flag then MZero
-      else f ()
-    | Func f2 -> if !finish_flag then MZero
+		if !finish_flag then MZero
+		else f ()
+    | Func f2 -> 
+		if !finish_flag then MZero
         else Func (fun () -> mplus (f ()) f2)
-    | Unit a -> if !finish_flag then (Unit a)
-      else Choice (a, f)
-    | Choice (a, f2) -> if !finish_flag then (Unit a)
-    else Choice (a, (fun () -> mplus (f ()) f2))
+    | Unit a -> 
+		if !finish_flag then (Unit a)
+      	else Choice (a, f)
+    | Choice (a, f2) -> 
+		if !finish_flag then (Unit a)
+    	else Choice (a, (fun () -> mplus (f ()) f2))
 
 (* mplus* *)
 let rec mplus_all lst =
@@ -184,11 +187,15 @@ let rec bind_all e lst =
  * let x = fresh () in [...]
  *)
 (* fresh: create a fresh variable *)
-let var_counter = ref 0
+let var_counter = Atomic.make 0
 let fresh () =
   begin
-    var_counter := !var_counter + 1;
-    Var !var_counter
+    Atomic.incr var_counter;
+    Var (Atomic.get var_counter)
+	(* Atomic.set var_counter ((Atomic.get var_counter) + 1);
+	Var (Atomic.get var_counter) *)
+(*  var_counter := !var_counter + 1;
+    Var !var_counter *)
   end
 
 let rec fresh_n n =
@@ -205,7 +212,6 @@ let conde lst s =
 
 
 let answers_limit = ref 0
-let finish = ref false
 let domains_number = ref 0
 
 let condePar lst s = 
@@ -238,7 +244,7 @@ let condePar lst s =
       let rec iter_tasks l = match l with
         | hd :: tl -> Eio.Fiber.both 
           (fun () -> 
-            if !domains_number <= 15
+            if !domains_number <= 10
               then 
 				(make_par_task ~domain_mgr:(Eio.Stdenv.domain_mgr env) hd)
             else (make_nonpar_task hd))

@@ -356,3 +356,5 @@ let task_inf2rev_nonpar q = [conde [
   [reverso q q];
   [reverso q q]
 ]]
+
+let task_inf1rev_par q = [condePar [[reversoPar q q]]]
