@@ -212,9 +212,9 @@ let conde lst s =
 
 
 let answers_limit = ref 0
-let domains_number = ref 0
 
 let condePar lst s = 
+  let domains_number = Atomic.make 0 in
   let queue = Eio.Stream.create max_int in
   let rec force_streams x = 
     match x with 
@@ -235,18 +235,20 @@ let condePar lst s =
   in
   let make_task_list l =
     let make_par_task f ~domain_mgr = 
-		domains_number := !domains_number + 1;
+		Atomic.incr domains_number;
+    (*Printf.printf "par%d\t" (Atomic.get domains_number);*)
 		Eio.Domain_manager.run domain_mgr (fun () -> force_streams (f s));
-		domains_number := !domains_number - 1;
+		Atomic.decr domains_number;
 	in
-    let make_nonpar_task f = force_streams (f s) in
+    let make_nonpar_task f = 
+      (*Printf.printf "non%d\t" (Atomic.get domains_number);*)
+      force_streams (f s) in
     Eio_main.run @@ fun env -> 
       let rec iter_tasks l = match l with
         | hd :: tl -> Eio.Fiber.both 
           (fun () -> 
-            if !domains_number <= 10
-              then 
-				(make_par_task ~domain_mgr:(Eio.Stdenv.domain_mgr env) hd)
+            if (Atomic.get domains_number) <= 2
+              then (make_par_task ~domain_mgr:(Eio.Stdenv.domain_mgr env) hd)
             else (make_nonpar_task hd))
           (fun () -> iter_tasks tl)
         | [] -> ()

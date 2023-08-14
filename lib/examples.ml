@@ -351,6 +351,11 @@ let task_inf2rev_par q = [condePar [
   [reverso q q]
 ]]
 
+let task_inf2rev_parpar q = [condePar [
+  [reversoPar q q];
+  [reversoPar q q]
+]]
+
 
 let task_inf2rev_nonpar q = [conde [
   [reverso q q];
@@ -358,3 +363,55 @@ let task_inf2rev_nonpar q = [conde [
 ]]
 
 let task_inf1rev_par q = [condePar [[reversoPar q q]]]
+
+
+(*****************)
+(*
+let c_conj = const_int 10;
+let c_disj = const_int 10;
+let c_neg = const_int 10;
+let c_var = const_int 10;
+
+let ando x y b = [condePar [
+  [ eq x (const_bool true); eq y (const_bool true); eq b (const_bool true) ];
+  [ eq x (const_bool false); eq y (const_bool true); eq b (const_bool false) ];
+  [ eq x (const_bool true); eq y (const_bool false); eq b (const_bool false) ];
+  [ eq x (const_bool false); eq y (const_bool false); eq b (const_bool false) ]
+]]
+
+let oro x y b = [condePar [
+  [ eq x (const_bool true); eq y (const_bool true); eq b (const_bool true) ];
+  [ eq x (const_bool false); eq y (const_bool true); eq b (const_bool true) ];
+  [ eq x (const_bool true); eq y (const_bool false); eq b (const_bool true) ];
+  [ eq x (const_bool false); eq y (const_bool false); eq b (const_bool false) ]
+]]
+
+let noto x b = [condePar [
+  [ eq x (const_bool true); eq b (const_bool false) ];
+  [ eq x (const_bool false); eq b (const_bool true) ];
+]]
+(* : elemo n s v =
+  [h t n':
+    (n === zero /\ s === h % t /\ v === h) \/
+    (n === succ n' /\ s === h % t /\ {elemo n' t v})
+  ]
+
+? {evalo st fm trueo} *)
+
+let elemo n s v = 
+  match (fresh_n 3) with 
+  | [h; t; n1] -> [condePar [
+    [eq n (const_int 0); eq s (Cons (h, t)); eq v h];
+    [eq n (const_int (h + 1)); eq s (Cons (h, t)); elemo n1 t v];
+  ]]
+
+let evalo st fm u = 
+  match (fresh_n 5) with
+  | [x; y; v; w; z] -> [condePar [
+    [eq fm === [c_conj, x, y]; evalo st x v; evalo st y w; ando v w u ];
+    [eq fm === [c_disj, x, y]; evalo st x v; evalo st y w; oro v w u ];
+    [eq fm === [c_neg, x ]; evalo st x v; noto v u];
+    [eq fm === [c_var, z]; elemo z st u];
+  ]]
+  | _ -> failwith "Fresh_n failed";
+*)
