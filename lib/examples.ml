@@ -117,11 +117,11 @@ let test_rev3 q = [ reverso q (Cons (const_int 1, (Cons (const_int 2, (Cons (con
 
 
 
-let task_2rev_par len q = [condePar [[reverso q (lst len 'x')];[reverso q (lst len 'a')]]]
+let task_2rev_par len q = [conde_par [[reverso q (lst len 'x')];[reverso q (lst len 'a')]]]
 
 let task_2rev_nonpar len q = [conde [[reverso q (lst len 'y')];[reverso q (lst len 'b')]]]
 
-let task_10rev_par len q = [condePar [
+let task_10rev_par len q = [conde_par [
   [reverso q (lst len '1')];
   [reverso q (lst len '2')];
   [reverso q (lst len '3')];
@@ -151,7 +151,7 @@ let task_10rev_nonpar len q = [conde [
 
 
 
-let task_2app_par len q = [condePar [
+let task_2app_par len q = [conde_par [
   [appendo (lst len '1') (lst len 'a') q];
   [appendo (lst len '2') (lst len 'b') q]
   ]]
@@ -164,7 +164,7 @@ let task_2app_nonpar len q = [conde [
 
 
 
-let task_10app_par len q = [condePar [
+let task_10app_par len q = [conde_par [
   [appendo (lst len '1') (lst len 'a') q];
   [appendo (lst len '2') (lst len 'b') q];
   [appendo (lst len '3') (lst len 'c') q];
@@ -200,7 +200,7 @@ let task_10app_nonpar len q = [conde [
         domfd sum (range 0 19);
         plusfd aug add par_sum;
         plusfd par_sum cin sum;
-        condePar [
+        conde_par [
           [
             ltfd (const_int 9) sum;
             eq cout (const_int 1);
@@ -233,7 +233,7 @@ let task_10app_nonpar len q = [conde [
 (* hard level *)
 
 let rec appendo_par l s out : 'a -> 'a stream =
-  condePar [
+  conde_par [
     [eq l (List []); eq s out];
     [
       fun ss ->
@@ -253,8 +253,8 @@ let rec appendo_par l s out : 'a -> 'a stream =
 let task_appendo_par len q = [ appendo (lst len 'a') (lst len 'b') q ]
 
 
-let rec reversoPar l out =
-  condePar [
+let rec reverso_par l out =
+  conde_par [
     [eq l (List []); eq out (List [])];
     [ fun ss ->
         let h, t = fresh (), fresh () in
@@ -270,11 +270,11 @@ let rec reversoPar l out =
     ]
   ] 
 
-let task_rev_par len q = [ reversoPar q (lst len 'a') ]
+let task_rev_par len q = [ reverso_par q (lst len 'a') ]
 
 let task_rev_nonpar len q = [ reverso q (lst len 'a') ]
 
-let task_50rev_par len q = [condePar [
+let task_50rev_par len q = [conde_par [
   task_10rev_par len q;
   task_10rev_par len q;
   task_10rev_par len q;
@@ -290,8 +290,7 @@ let task_50rev_nonpar len q = [conde [
   task_10rev_nonpar len q;
 ]]
 
-(* or 100 times pure reverso, no difference *)
-let task_100rev_par len q = [condePar [
+let task_100rev_par len q = [conde_par [
   task_10rev_par len q;
   task_10rev_par len q;
   task_10rev_par len q;
@@ -318,21 +317,21 @@ let task_100rev_nonpar len q = [conde [
 ]]
 
 
-let task_10rev_parpar len q = [condePar [
-  [reversoPar q (lst len '1')];
-  [reversoPar q (lst len '2')];
-  [reversoPar q (lst len '3')];
-  [reversoPar q (lst len '4')];
-  [reversoPar q (lst len '5')];
+let task_10rev_parpar len q = [conde_par [
+  [reverso_par q (lst len '1')];
+  [reverso_par q (lst len '2')];
+  [reverso_par q (lst len '3')];
+  [reverso_par q (lst len '4')];
+  [reverso_par q (lst len '5')];
 
-  [reversoPar q (lst len '6')];
-  [reversoPar q (lst len '7')];
-  [reversoPar q (lst len '8')];
-  [reversoPar q (lst len '9')];
-  [reversoPar q (lst len '0')];
+  [reverso_par q (lst len '6')];
+  [reverso_par q (lst len '7')];
+  [reverso_par q (lst len '8')];
+  [reverso_par q (lst len '9')];
+  [reverso_par q (lst len '0')];
 ]]
 
-let task_100rev_parpar len q = [condePar [
+let task_100rev_parpar len q = [conde_par [
   task_10rev_parpar len q;
   task_10rev_parpar len q;
   task_10rev_parpar len q;
@@ -346,14 +345,14 @@ let task_100rev_parpar len q = [condePar [
   task_10rev_parpar len q;
 ]]
 
-let task_inf2rev_par q = [condePar [
+let task_inf2rev_par q = [conde_par [
   [reverso q q];
   [reverso q q]
 ]]
 
-let task_inf2rev_parpar q = [condePar [
-  [reversoPar q q];
-  [reversoPar q q]
+let task_inf2rev_parpar q = [conde_par [
+  [reverso_par q q];
+  [reverso_par q q]
 ]]
 
 
@@ -362,7 +361,8 @@ let task_inf2rev_nonpar q = [conde [
   [reverso q q]
 ]]
 
-let task_inf1rev_par q = [condePar [[reversoPar q q]]]
+let task_inf1rev_par q = [conde_par [[reverso_par q q]]]
+let task_inf1rev_nonpar q = [conde_par [[reverso q q]]]
 
 
 (*****************)
@@ -372,21 +372,21 @@ let c_disj = const_int 10;
 let c_neg = const_int 10;
 let c_var = const_int 10;
 
-let ando x y b = [condePar [
+let ando x y b = [conde_par [
   [ eq x (const_bool true); eq y (const_bool true); eq b (const_bool true) ];
   [ eq x (const_bool false); eq y (const_bool true); eq b (const_bool false) ];
   [ eq x (const_bool true); eq y (const_bool false); eq b (const_bool false) ];
   [ eq x (const_bool false); eq y (const_bool false); eq b (const_bool false) ]
 ]]
 
-let oro x y b = [condePar [
+let oro x y b = [conde_par [
   [ eq x (const_bool true); eq y (const_bool true); eq b (const_bool true) ];
   [ eq x (const_bool false); eq y (const_bool true); eq b (const_bool true) ];
   [ eq x (const_bool true); eq y (const_bool false); eq b (const_bool true) ];
   [ eq x (const_bool false); eq y (const_bool false); eq b (const_bool false) ]
 ]]
 
-let noto x b = [condePar [
+let noto x b = [conde_par [
   [ eq x (const_bool true); eq b (const_bool false) ];
   [ eq x (const_bool false); eq b (const_bool true) ];
 ]]
@@ -400,14 +400,14 @@ let noto x b = [condePar [
 
 let elemo n s v = 
   match (fresh_n 3) with 
-  | [h; t; n1] -> [condePar [
+  | [h; t; n1] -> [conde_par [
     [eq n (const_int 0); eq s (Cons (h, t)); eq v h];
     [eq n (const_int (h + 1)); eq s (Cons (h, t)); elemo n1 t v];
   ]]
 
 let evalo st fm u = 
   match (fresh_n 5) with
-  | [x; y; v; w; z] -> [condePar [
+  | [x; y; v; w; z] -> [conde_par [
     [eq fm === [c_conj, x, y]; evalo st x v; evalo st y w; ando v w u ];
     [eq fm === [c_disj, x, y]; evalo st x v; evalo st y w; oro v w u ];
     [eq fm === [c_neg, x ]; evalo st x v; noto v u];

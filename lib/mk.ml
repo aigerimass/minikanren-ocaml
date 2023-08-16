@@ -1,7 +1,5 @@
 open Eio
 
-let finish_flag = ref false;
-
 (* represent a constant value *)
 type const_value =
   | Bool of bool
@@ -145,20 +143,23 @@ type 'a stream =
 
 let empty_f () = MZero
 
+
+let finish_flag = ref false
+
 (* mplus *)
 let rec mplus a_inf f =
     match a_inf with
-    | MZero -> 
-		if !finish_flag then MZero
-		else f ()
-    | Func f2 -> 
-		if !finish_flag then MZero
-        else Func (fun () -> mplus (f ()) f2)
-    | Unit a -> 
-		if !finish_flag then (Unit a)
-      	else Choice (a, f)
-    | Choice (a, f2) -> 
-		if !finish_flag then (Unit a)
+    | MZero -> if !finish_flag 
+      then MZero
+		  else f ()
+    | Func f2 -> if !finish_flag 
+      then MZero
+      else Func (fun () -> mplus (f ()) f2)
+    | Unit a -> if !finish_flag 
+      then (Unit a)
+      else Choice (a, f)
+    | Choice (a, f2) -> if !finish_flag 
+      then (Unit a)
     	else Choice (a, (fun () -> mplus (f ()) f2))
 
 (* mplus* *)
@@ -192,10 +193,6 @@ let fresh () =
   begin
     Atomic.incr var_counter;
     Var (Atomic.get var_counter)
-	(* Atomic.set var_counter ((Atomic.get var_counter) + 1);
-	Var (Atomic.get var_counter) *)
-(*  var_counter := !var_counter + 1;
-    Var !var_counter *)
   end
 
 let rec fresh_n n =
@@ -210,10 +207,10 @@ let conde lst s =
   let lst = List.map all lst in
   Func (fun () -> mplus_all (List.map (fun f -> (f s)) lst))
 
-
+(* limit of answers (from take function)*)
 let answers_limit = ref 0
 
-let condePar lst s = 
+let conde_par lst s = 
   let domains_number = Atomic.make 0 in
   let queue = Eio.Stream.create max_int in
   let rec force_streams x = 
@@ -236,12 +233,10 @@ let condePar lst s =
   let make_task_list l =
     let make_par_task f ~domain_mgr = 
 		Atomic.incr domains_number;
-    (*Printf.printf "par%d\t" (Atomic.get domains_number);*)
 		Eio.Domain_manager.run domain_mgr (fun () -> force_streams (f s));
 		Atomic.decr domains_number;
 	in
     let make_nonpar_task f = 
-      (*Printf.printf "non%d\t" (Atomic.get domains_number);*)
       force_streams (f s) in
     Eio_main.run @@ fun env -> 
       let rec iter_tasks l = match l with

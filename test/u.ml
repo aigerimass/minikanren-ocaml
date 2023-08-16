@@ -21,7 +21,7 @@ let test ?limit:(limit = -1) name f =
   task_100rev_par и другие задачи в файле examples 
   *)
 
-  let _ = test ~limit:(-1) "reverso" (task_100rev_nonpar 10)
+  let _ = test ~limit:(50) "reverso" (task_inf1rev_nonpar)
   
   (*let _ = test ~limit:(30) "reverso" (task_inf2rev_parpar)*)
   (*let _ = test ~limit:(100) "reverso" (task_inf2rev_par)*)
