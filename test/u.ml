@@ -17,13 +17,9 @@ let test ?limit:(limit = -1) name f =
   print_string (Printf.sprintf "Execution time: %f\n" (Unix.time() -. time));
   print_s s
 
-  (* 
-  task_100rev_par и другие задачи в файле examples 
-  *)
+  (* example tasks in lib/examples.ml *)
 
-  let _ = test ~limit:(50) "reverso" (task_inf1rev_nonpar)
+  let _ = test ~limit:(100) "reverso" (task_inf2rev_parpar)
   
-  (*let _ = test ~limit:(30) "reverso" (task_inf2rev_parpar)*)
-  (*let _ = test ~limit:(100) "reverso" (task_inf2rev_par)*)
 
 

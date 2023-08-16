@@ -207,8 +207,11 @@ let conde lst s =
   let lst = List.map all lst in
   Func (fun () -> mplus_all (List.map (fun f -> (f s)) lst))
 
-(* limit of answers (from take function)*)
+(* limit of answers (remained in take function) *)
 let answers_limit = ref 0
+
+(* you can change the value to control the number of domains *)
+let domains_limit = ref 2
 
 let conde_par lst s = 
   let domains_number = Atomic.make 0 in
@@ -235,16 +238,16 @@ let conde_par lst s =
 		Atomic.incr domains_number;
 		Eio.Domain_manager.run domain_mgr (fun () -> force_streams (f s));
 		Atomic.decr domains_number;
-	in
+	  in
     let make_nonpar_task f = 
       force_streams (f s) in
     Eio_main.run @@ fun env -> 
       let rec iter_tasks l = match l with
         | hd :: tl -> Eio.Fiber.both 
           (fun () -> 
-            if (Atomic.get domains_number) <= 2
+            if (Atomic.get domains_number) <= !domains_limit
               then (make_par_task ~domain_mgr:(Eio.Stdenv.domain_mgr env) hd)
-            else (make_nonpar_task hd))
+              else (make_nonpar_task hd))
           (fun () -> iter_tasks tl)
         | [] -> ()
       in iter_tasks l
