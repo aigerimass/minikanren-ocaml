@@ -1,3 +1,5 @@
+open Eio
+
 (* represent a constant value *)
 type const_value =
   | Bool of bool
@@ -141,13 +143,24 @@ type 'a stream =
 
 let empty_f () = MZero
 
+
+let finish_flag = ref false
+
 (* mplus *)
 let rec mplus a_inf f =
-  match a_inf with
-    | MZero -> f ()
-    | Func f2 -> Func (fun () -> mplus (f ()) f2)
-    | Unit a -> Choice (a, f)
-    | Choice (a, f2) -> Choice (a, (fun () -> mplus (f ()) f2))
+    match a_inf with
+    | MZero -> if !finish_flag 
+      then MZero
+		  else f ()
+    | Func f2 -> if !finish_flag 
+      then MZero
+      else Func (fun () -> mplus (f ()) f2)
+    | Unit a -> if !finish_flag 
+      then (Unit a)
+      else Choice (a, f)
+    | Choice (a, f2) -> if !finish_flag 
+      then (Unit a)
+    	else Choice (a, (fun () -> mplus (f ()) f2))
 
 (* mplus* *)
 let rec mplus_all lst =
@@ -175,11 +188,11 @@ let rec bind_all e lst =
  * let x = fresh () in [...]
  *)
 (* fresh: create a fresh variable *)
-let var_counter = ref 0
+let var_counter = Atomic.make 0
 let fresh () =
   begin
-    var_counter := !var_counter + 1;
-    Var !var_counter
+    Atomic.incr var_counter;
+    Var (Atomic.get var_counter)
   end
 
 let rec fresh_n n =
@@ -190,12 +203,68 @@ let rec fresh_n n =
 let all lst a = bind_all (Unit a) lst
 
 (* conde *)
-let conde lst s =
+let conde lst s = 
   let lst = List.map all lst in
   Func (fun () -> mplus_all (List.map (fun f -> (f s)) lst))
 
+(* limit of answers (remained in take function) *)
+let answers_limit = ref 0
+
+(* you can change the value to control the number of domains *)
+let domains_limit = ref 2
+
+let conde_par lst s = 
+  let domains_number = Atomic.make 0 in
+  let queue = Eio.Stream.create max_int in
+  let rec force_streams x = 
+    match x with 
+    | Choice (x, f) -> 
+      Eio.Stream.add queue x;
+      if Stream.length queue >= !answers_limit && !answers_limit != -1
+        then (finish_flag := true;)
+      else force_streams (f ());
+    | Unit x -> 
+        Eio.Stream.add queue x;
+        if Stream.length queue >= !answers_limit && !answers_limit != -1
+          then 
+			finish_flag := true;
+    | Func f -> 
+      if !finish_flag then ()
+      else force_streams (f ());
+    | MZero -> ()
+  in
+  let make_task_list l =
+    let make_par_task f ~domain_mgr = 
+		Atomic.incr domains_number;
+		Eio.Domain_manager.run domain_mgr (fun () -> force_streams (f s));
+		Atomic.decr domains_number;
+	  in
+    let make_nonpar_task f = 
+      force_streams (f s) in
+    Eio_main.run @@ fun env -> 
+      let rec iter_tasks l = match l with
+        | hd :: tl -> Eio.Fiber.both 
+          (fun () -> 
+            if (Atomic.get domains_number) <= !domains_limit
+              then (make_par_task ~domain_mgr:(Eio.Stdenv.domain_mgr env) hd)
+              else (make_nonpar_task hd))
+          (fun () -> iter_tasks tl)
+        | [] -> ()
+      in iter_tasks l
+  in 
+  let rec merge_streams queue =
+    match Eio.Stream.take_nonblocking queue with
+    | Some x -> mplus (Unit x) (fun () -> merge_streams queue)
+    | None -> MZero
+  in
+  make_task_list (List.map all lst);
+  finish_flag := false;
+  merge_streams queue
+
+
 (* take *)
 let rec take n a_inf =
+  answers_limit := n;
   if n = 0 then []
   else match a_inf with
     | MZero -> []
